@@ -18,6 +18,7 @@ public class CounterPIDSource implements PIDSource {
     
     public CounterPIDSource(Counter counter){
         this.counter = counter;
+        speeds = new RingBuffer(15);
     }
     
     public double pidGet() {

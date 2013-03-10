@@ -10,8 +10,11 @@ package edu.wpi.first.wpilibj.templates;
 
 import edu.wpi.first.wpilibj.Counter;
 import edu.wpi.first.wpilibj.IterativeRobot;
+import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.PIDController;
-import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.SpeedController;
+import edu.wpi.first.wpilibj.Talon;
+import edu.wpi.first.wpilibj.buttons.JoystickButton;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 /**
@@ -30,21 +33,52 @@ public class RobotMain extends IterativeRobot {
     PIDController pid;
     CounterPIDSource hallSource;
     //DigitalInput hall1;
+    double p;
+    double i;
+    double d;
+    double f;
+    double setpoint;
+    
     Counter hall1;
     RingBuffer speeds;
-    IntPIDOutput output;
+    
+    SpeedControllerMultiplexer shooter;
+    Talon shooter1;
+    Talon shooter2;
+    Talon shooter3;
+    Talon shooter4;
+    
+    Joystick joy1;
+    Joystick joy2;
+    Joystick joy3;
+    
+    ToggleButton PIDToggle;
+    ToggleButton motorToggle;
     
     public void robotInit() {
         //hall1 = new DigitalInput(1);
+        joy2 = new Joystick(2);
+        joy1 = new Joystick(1);
+        joy3 = new Joystick(3);
+        motorToggle = new ToggleButton(new JoystickButton(joy1, 1));
+        PIDToggle = new ToggleButton(new JoystickButton(joy2, 1));
+        
         hall1 = new Counter(1);
         hall1.setMaxPeriod(1);
         hall1.start();
+        
+        shooter1 = new Talon(1);
+        shooter2 = new Talon(2);
+        shooter3 = new Talon(3);
+        shooter4 = new Talon(4);
+        SpeedController[] controllers = {shooter1, shooter2, shooter3, shooter4};
+        shooter = new SpeedControllerMultiplexer(controllers); 
+        
         hallSource = new CounterPIDSource(hall1);
-        speeds = new RingBuffer(15);
-        output = new IntPIDOutput();
-        pid = new PIDController(1, 0, 0, 0, hallSource, output);
-        pid.enable();
-        pid.setSetpoint(500);
+        
+        pid = new PIDController(0, 0, 0, 0, hallSource, shooter);
+        pid.setContinuous();
+        pid.setInputRange(0, 10000);
     }
 
     /**
@@ -58,14 +92,35 @@ public class RobotMain extends IterativeRobot {
      * This function is called periodically during operator control
      */
     public void teleopPeriodic() {
-        Timer.getFPGATimestamp();
-        SmartDashboard.putNumber("hall1 count", hall1.get());
-        SmartDashboard.putNumber("Hall Timer", hall1.getPeriod());
+        
+        p = (joy1.getThrottle() + 1)/2;
+        i = (joy2.getZ() + 1)/2;
+        d = (joy3.getZ() + 1)/2;
+        f = 0;
+        SmartDashboard.putNumber("p", p);
+        SmartDashboard.putNumber("i", i);
+        SmartDashboard.putNumber("d", d);
+        pid.setPID(p, i, d);
+        
+        setpoint = SmartDashboard.getNumber("setpoint");
+        pid.setSetpoint(setpoint);
+        
         SmartDashboard.putNumber("hall RPM", hallSource.getRPM());
-        speeds.add(hallSource.getRPM());
-        SmartDashboard.putNumber("buffered speed", speeds.getAverage());
-        SmartDashboard.putNumber("PID output", output.getOutput());
-        SmartDashboard.putNumber("pid output 2", pid.get());
+        SmartDashboard.putNumber("buffered speed", hallSource.pidGet());
+        
+        if(PIDToggle.isToggled()){
+            if(!pid.isEnable()){
+                pid.enable();
+                SmartDashboard.putString("PID State", "enabled");
+            }     
+        }else{
+            if(pid.isEnable()){
+                pid.disable();
+                SmartDashboard.putString("PID State", "disabled");
+            }
+            shooter.set(joy1.getY());
+        }
+
     }
     
     /**
